@@ -108,7 +108,7 @@ const AdminDashboard = () => {
       {/* Courses summary */}
       <div className="mt-6 bg-card rounded-xl border shadow-card">
         <div className="p-5 border-b">
-          <h3 className="font-bold">Courses</h3>
+          <h3 className="font-bold">Course</h3>
         </div>
         <div className="divide-y">
           {courses.map((c) => (
