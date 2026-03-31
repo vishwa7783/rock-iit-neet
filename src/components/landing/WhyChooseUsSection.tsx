@@ -8,7 +8,7 @@ export function WhyChooseUsSection() {
     <section id="why-us" className="py-20 bg-muted/50">
       <div className="container">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-extrabold mb-3">Why Choose <span className="text-gradient">EduElite?</span></h2>
+          <h2 className="text-3xl md:text-4xl font-extrabold mb-3">Why Choose <span className="text-gradient">Rock IIT NEET?</span></h2>
           <p className="text-muted-foreground max-w-xl mx-auto">What sets us apart from the rest</p>
         </div>
 

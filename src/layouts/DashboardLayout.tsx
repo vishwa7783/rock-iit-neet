@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { GraduationCap, Menu, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { clearSession } from "@/services/api";
 
 interface NavItem {
   label: string;
@@ -22,6 +23,11 @@ export function DashboardLayout({ children, navItems, title, userName, userRole 
   const location = useLocation();
   const navigate = useNavigate();
 
+  const handleLogout = () => {
+    clearSession();
+    navigate("/login");
+  };
+
   return (
     <div className="min-h-screen flex bg-muted/30">
       {/* Sidebar overlay mobile */}
@@ -34,7 +40,7 @@ export function DashboardLayout({ children, navItems, title, userName, userRole 
         <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
           <Link to="/" className="flex items-center gap-2 font-bold text-lg">
             <GraduationCap className="h-6 w-6 text-sidebar-primary" />
-            <span className="text-sidebar-primary">EduElite</span>
+            <span className="text-sidebar-primary">Rock IIT NEET</span>
           </Link>
           <button className="lg:hidden text-sidebar-foreground" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />
@@ -74,7 +80,7 @@ export function DashboardLayout({ children, navItems, title, userName, userRole 
             variant="ghost"
             size="sm"
             className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-            onClick={() => navigate("/login")}
+            onClick={handleLogout}
           >
             <LogOut className="h-4 w-4" /> Logout
           </Button>

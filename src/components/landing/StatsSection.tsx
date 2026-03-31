@@ -1,20 +1,29 @@
-import { Users, Trophy, TrendingUp, Award } from "lucide-react";
-import { stats } from "@/data/dummy";
+import { Users, UserCog, BookOpen, CreditCard } from "lucide-react";
 
-const iconMap: Record<string, React.ElementType> = { Users, Trophy, TrendingUp, Award };
+const iconMap: Record<string, React.ElementType> = { Users, UserCog, BookOpen, CreditCard };
 
-export function StatsSection() {
+interface StatItem {
+  label: string;
+  value: string;
+  icon: keyof typeof iconMap;
+}
+
+interface StatsSectionProps {
+  stats: StatItem[];
+}
+
+export function StatsSection({ stats }: StatsSectionProps) {
   return (
-    <section id="stats" className="py-16 bg-hero-gradient">
+    <section id="stats" className="py-8">
       <div className="container">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {stats.map((s, i) => {
             const Icon = iconMap[s.icon];
             return (
-              <div key={i} className="text-center animate-count-up" style={{ animationDelay: `${i * 0.1}s` }}>
-                <Icon className="h-8 w-8 mx-auto mb-3 text-primary-foreground/80" />
-                <div className="text-3xl md:text-4xl font-extrabold text-primary-foreground">{s.value}</div>
-                <div className="text-sm text-primary-foreground/70 mt-1">{s.label}</div>
+              <div key={i} className="bg-card rounded-xl border p-5 shadow-card" style={{ animationDelay: `${i * 0.1}s` }}>
+                <Icon className="h-7 w-7 mb-3 text-primary" />
+                <div className="text-3xl font-extrabold">{s.value}</div>
+                <div className="text-sm text-muted-foreground mt-1">{s.label}</div>
               </div>
             );
           })}

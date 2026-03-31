@@ -1,9 +1,14 @@
 import { Atom, Stethoscope, BookOpen, ArrowRight } from "lucide-react";
-import { courses } from "@/data/dummy";
+import type { Course } from "@/services/api";
 
 const iconMap: Record<string, React.ElementType> = { Atom, Stethoscope, BookOpen };
 
-export function CoursesSection() {
+interface CoursesSectionProps {
+  courses: Course[];
+  onSelectCourse?: (courseTitle: string) => void;
+}
+
+export function CoursesSection({ courses, onSelectCourse }: CoursesSectionProps) {
   return (
     <section id="courses" className="py-20">
       <div className="container">
@@ -14,7 +19,7 @@ export function CoursesSection() {
 
         <div className="grid md:grid-cols-3 gap-6">
           {courses.map((c, i) => {
-            const Icon = iconMap[c.icon];
+            const Icon = iconMap[c.title.toLowerCase().includes("neet") ? "Stethoscope" : c.title.toLowerCase().includes("foundation") ? "BookOpen" : "Atom"];
             return (
               <div
                 key={c.id}
@@ -24,12 +29,17 @@ export function CoursesSection() {
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary mb-4">
                   <Icon className="h-6 w-6" />
                 </div>
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">{c.classes}</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">{c.targetClasses}</div>
                 <h3 className="text-xl font-bold mb-1">{c.title}</h3>
+                <p className="text-sm text-muted-foreground mb-2">{c.subtitle}</p>
                 <p className="text-sm text-muted-foreground mb-4">{c.description}</p>
-                <a href="#contact" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:gap-2 transition-all">
+                <button
+                  type="button"
+                  onClick={() => onSelectCourse?.(c.title)}
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:gap-2 transition-all"
+                >
                   Learn More <ArrowRight className="h-3.5 w-3.5" />
-                </a>
+                </button>
               </div>
             );
           })}
