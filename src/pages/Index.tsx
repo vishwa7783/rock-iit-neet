@@ -1,44 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navbar } from "@/components/landing/Navbar";
 import { HeroSection } from "@/components/landing/HeroSection";
-import { StatsSection } from "@/components/landing/StatsSection";
-import { CoursesSection } from "@/components/landing/CoursesSection";
+import { AboutSection } from "@/components/landing/AboutSection";
 import { WhyChooseUsSection } from "@/components/landing/WhyChooseUsSection";
-import { TestimonialsSection } from "@/components/landing/TestimonialsSection";
+import { CoursesSection } from "@/components/landing/CoursesSection";
+import { ResultsSection } from "@/components/landing/ResultsSection";
+import { StudentBenefits } from "@/components/landing/StudentBenefits";
 import { ContactSection } from "@/components/landing/ContactSection";
 import { Footer } from "@/components/landing/Footer";
-import { courseService, resolveApiError, studentService, teacherService, type Course } from "@/services/api";
+import { courseService, resolveApiError, type Course } from "@/services/api";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const Index = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState("");
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    totalTeachers: 0,
-    activeCourses: 0,
-    revenue: "0",
-  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [coursesData, statsData, teachers] = await Promise.all([
-          courseService.getAll(),
-          studentService.getAdminStats(),
-          teacherService.getAll(),
-        ]);
-
+        const coursesData = await courseService.getAll();
         setCourses(coursesData);
         setSelectedCourse(coursesData[0]?.title || "");
-        setStats({
-          totalStudents: statsData.totalStudents,
-          totalTeachers: statsData.totalTeachers || teachers.length,
-          activeCourses: statsData.activeCourses,
-          revenue: statsData.revenue,
-        });
       } catch (error) {
         toast.error(resolveApiError(error));
       } finally {
@@ -49,16 +33,6 @@ const Index = () => {
     load();
   }, []);
 
-  const statCards = useMemo(
-    () => [
-      { label: "Students Enrolled", value: stats.totalStudents.toLocaleString(), icon: "Users" as const },
-      { label: "Faculty Members", value: stats.totalTeachers.toString(), icon: "UserCog" as const },
-      { label: "Active Courses", value: stats.activeCourses.toString(), icon: "BookOpen" as const },
-      { label: "Revenue Snapshot", value: stats.revenue, icon: "CreditCard" as const },
-    ],
-    [stats],
-  );
-
   const scrollToContact = (courseTitle?: string) => {
     if (courseTitle) {
       setSelectedCourse(courseTitle);
@@ -68,21 +42,20 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-white">
       <Navbar />
       <HeroSection onEnroll={() => scrollToContact()} />
+      <AboutSection />
+      <WhyChooseUsSection />
       {loading ? (
         <div className="container py-20 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
         </div>
       ) : (
-        <>
-          <StatsSection stats={statCards} />
-          <CoursesSection courses={courses} onSelectCourse={scrollToContact} />
-        </>
+        <CoursesSection courses={courses} onSelectCourse={scrollToContact} />
       )}
-      <WhyChooseUsSection />
-      <TestimonialsSection />
+      <ResultsSection />
+      <StudentBenefits />
       <ContactSection courses={courses} defaultCourse={selectedCourse} />
       <Footer />
     </div>

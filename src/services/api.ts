@@ -300,6 +300,9 @@ export const enquiryService = {
     const qs = statuses && statuses.length ? `?statuses=${statuses.join(",")}` : "";
     return request<Enquiry[]>(`/enquiries${qs}`);
   },
-  updateStatus: (id: string, status: string, reason: string) =>
+  getAllActive: () => {
+    return request<Enquiry[]>("/enquiries?statuses=active,Active,pending,Pending,new,New");
+  },
+  updateStatus: (id: string, status: string, reason: string = "") =>
     request<Enquiry>(`/enquiries/${id}`, { method: "PUT", body: JSON.stringify({ status, reason }) }),
 };

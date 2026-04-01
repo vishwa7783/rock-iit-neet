@@ -76,12 +76,35 @@
     background-image: var(--hero-gradient);
   }
 
+  .hero-pattern {
+    background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #1e3a8a 0%, #f97316 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
   .shadow-card {
     box-shadow: var(--card-shadow);
   }
 
   .shadow-card-hover {
     box-shadow: var(--card-shadow-hover);
+  }
+
+  .card-hover {
+    @apply transition-all duration-300;
+  }
+
+  .card-hover:hover {
+    @apply -translate-y-1 shadow-xl shadow-primary/10;
+  }
+
+  .value-icon {
+    @apply w-12 h-12 bg-gradient-to-br from-primary to-blue-600 rounded-xl flex items-center justify-center text-white;
   }
 
   .animate-fade-in {

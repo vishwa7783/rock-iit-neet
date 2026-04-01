@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
   CreditCard,
@@ -14,6 +14,7 @@ import {
   MessageSquare,
   ArrowUpDown,
   Eye,
+  History,
 } from "lucide-react";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -95,6 +96,7 @@ const matches = (value: string, query: string) => value.toLowerCase().includes(q
 const AdminDashboard = () => {
   const session = getSession();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<AdminStats>({
@@ -108,6 +110,11 @@ const AdminDashboard = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [historyEnquiries, setHistoryEnquiries] = useState<Enquiry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedEnquiry, setSelectedEnquiry] = useState<Enquiry | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [updateReason, setUpdateReason] = useState("");
 
   const [studentSearch, setStudentSearch] = useState("");
   const [teacherSearch, setTeacherSearch] = useState("");
@@ -115,15 +122,12 @@ const AdminDashboard = () => {
 
   const [scheduleSearch, setScheduleSearch] = useState("");
   const [enquirySearch, setEnquirySearch] = useState("");
-  const [enquirySortField, setEnquirySortField] = useState<"name" | "status" | "date">("date");
-  const [enquirySortDir, setEnquirySortDir] = useState<"asc" | "desc">("desc");
-
-  const [enquiryTab, setEnquiryTab] = useState<"active" | "resolved_inactive">("active");
-  const [enquiryReasonForm, setEnquiryReasonForm] = useState("");
+  const [enquirySort, setEnquirySort] = useState<{ field: "name" | "date"; order: "asc" | "desc" }>({
+    field: "date",
+    order: "desc",
+  });
 
   const [enquiryDialogOpen, setEnquiryDialogOpen] = useState(false);
-  const [enquiryDetailsDialogOpen, setEnquiryDetailsDialogOpen] = useState(false);
-  const [selectedDetailEnquiry, setSelectedDetailEnquiry] = useState<Enquiry | null>(null);
   const [editingEnquiryId, setEditingEnquiryId] = useState<string | null>(null);
   const [enquiryStatusForm, setEnquiryStatusForm] = useState<string>("active");
 
@@ -155,8 +159,10 @@ const AdminDashboard = () => {
           : normalizedSection === "schedule"
             ? "Schedule"
             : normalizedSection === "enquiries"
-              ? "Enquiries"
-              : "Admin Dashboard";
+              ? "Active Enquiries"
+              : normalizedSection === "enquiry-history"
+                ? "Enquiry History"
+                : "Admin Dashboard";
 
   const loadDashboard = async () => {
     try {
@@ -167,7 +173,7 @@ const AdminDashboard = () => {
         courseService.getAll(),
         scheduleService.getAll(),
         studentService.getAdminStats(),
-        enquiryService.getEnquiries(enquiryTab === "active" ? ["Active"] : ["inactive", "resolved"]),
+        enquiryService.getEnquiries(["active", "pending", "new", "Active", "Pending", "New"]),
       ]);
 
       setStudents(studentsData);
@@ -186,13 +192,25 @@ const AdminDashboard = () => {
     }
   };
 
-  useEffect(() => {
-    enquiryService.getEnquiries(enquiryTab === "active" ? ["Active"] : ["inactive", "resolved"]).then(setEnquiries);
-  }, [enquiryTab]);
+  const loadHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const data = await enquiryService.getEnquiries(["inactive", "resolved", "Inactive", "Resolved"]);
+      setHistoryEnquiries(data);
+    } catch (error) {
+      toast.error(resolveApiError(error));
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   useEffect(() => {
-    loadDashboard();
-  }, []);
+    if (normalizedSection === "enquiry-history") {
+      loadHistory();
+    } else {
+      loadDashboard();
+    }
+  }, [normalizedSection]);
 
   const filteredStudents = useMemo(() => {
     if (!studentSearch.trim()) return students;
@@ -248,27 +266,14 @@ const AdminDashboard = () => {
     }
     return [...result].sort((a, b) => {
       let cmp = 0;
-      if (enquirySortField === "name") {
+      if (enquirySort.field === "name") {
         cmp = a.name.localeCompare(b.name);
-      } else if (enquirySortField === "status") {
-        cmp = (a.status || "").localeCompare(b.status || "");
-      } else if (enquirySortField === "date") {
-        const dateA = new Date(a.createdAt).getTime();
-        const dateB = new Date(b.createdAt).getTime();
-        cmp = dateA - dateB;
+      } else {
+        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       }
-      return enquirySortDir === "asc" ? cmp : -cmp;
+      return enquirySort.order === "asc" ? cmp : -cmp;
     });
-  }, [enquirySearch, enquirySortField, enquirySortDir, enquiries]);
-
-  const toggleEnquirySort = (field: "name" | "status" | "date") => {
-    if (enquirySortField === field) {
-      setEnquirySortDir(enquirySortDir === "asc" ? "desc" : "asc");
-    } else {
-      setEnquirySortField(field);
-      setEnquirySortDir(field === "name" ? "asc" : "desc");
-    }
-  };
+  }, [enquirySearch, enquirySort, enquiries]);
 
   const openStudentDialog = async (id?: string) => {
     if (!id) {
@@ -435,26 +440,18 @@ const AdminDashboard = () => {
 
   const openEnquiryDialog = (enquiry: Enquiry) => {
     setEditingEnquiryId(enquiry.id);
-    setEnquiryStatusForm("inactive");
-    setEnquiryReasonForm("");
+    setEnquiryStatusForm(enquiry.status === "active" ? "inactive" : "active");
+    setUpdateReason("");
     setEnquiryDialogOpen(true);
-  };
-
-  const openEnquiryDetails = (enquiry: Enquiry) => {
-    setSelectedDetailEnquiry(enquiry);
-    setEnquiryDetailsDialogOpen(true);
   };
 
   const saveEnquiryStatus = async () => {
     if (!editingEnquiryId) return;
-    if (!enquiryReasonForm.trim()) {
-      return toast.error("Reason is mandatory");
-    }
     try {
-      await enquiryService.updateStatus(editingEnquiryId, enquiryStatusForm, enquiryReasonForm);
+      await enquiryService.updateStatus(editingEnquiryId, enquiryStatusForm, updateReason);
       toast.success("Enquiry status updated");
       setEnquiryDialogOpen(false);
-      enquiryService.getEnquiries(enquiryTab === "active" ? ["Active"] : ["inactive", "resolved"]).then(setEnquiries);
+      await loadDashboard();
     } catch (error) {
       toast.error(resolveApiError(error));
     }
@@ -856,20 +853,23 @@ const AdminDashboard = () => {
 
       {normalizedSection === "enquiries" && (
         <section className="bg-card rounded-xl border shadow-card">
-          <div className="p-5 border-b flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-            <h3 className="font-bold">
-              {enquiryTab === "active" ? "Active Enquiries" : "Inactive & Resolved Enquiries"}
-            </h3>
+          <div className="p-5 border-b flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
+            <h3 className="font-bold text-primary">Active Enquiries</h3>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 border-primary/30 text-primary hover:bg-primary/5 h-10 px-4 rounded-xl font-bold"
+                onClick={() => navigate("/admin/enquiry-history")}
+              >
+                <History className="h-4 w-4" /> Inactive & Resolved
+              </Button>
               <Input
                 placeholder="Search queries..."
-                className="w-56"
+                className="w-56 h-10 rounded-xl"
                 value={enquirySearch}
                 onChange={(event) => setEnquirySearch(event.target.value)}
               />
-              <Button variant="outline" onClick={() => setEnquiryTab(prev => prev === "active" ? "resolved_inactive" : "active")}>
-                {enquiryTab === "active" ? "View Resolved & Inactive" : "View Active"}
-              </Button>
               <Dialog open={enquiryDialogOpen} onOpenChange={setEnquiryDialogOpen}>
                 <DialogContent>
                   <DialogHeader>
@@ -886,9 +886,9 @@ const AdminDashboard = () => {
                       </SelectContent>
                     </Select>
                     <Input
-                      placeholder="Reason for status change (Mandatory)"
-                      value={enquiryReasonForm}
-                      onChange={(e) => setEnquiryReasonForm(e.target.value)}
+                      placeholder="Reason for status change..."
+                      value={updateReason}
+                      onChange={(e) => setUpdateReason(e.target.value)}
                     />
                     <Button className="w-full" onClick={saveEnquiryStatus}>
                       Save Status
@@ -897,61 +897,7 @@ const AdminDashboard = () => {
                 </DialogContent>
               </Dialog>
 
-              <Dialog open={enquiryDetailsDialogOpen} onOpenChange={setEnquiryDetailsDialogOpen}>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Enquiry Details</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Student Name</p>
-                      <p className="text-base font-semibold">{selectedDetailEnquiry?.name}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Email Address</p>
-                      <p className="text-base">{selectedDetailEnquiry?.email}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Phone Number</p>
-                      <p className="text-base">{selectedDetailEnquiry?.phone}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">School Name</p>
-                      <p className="text-base">{selectedDetailEnquiry?.schoolName || "-"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Interested In / Grade</p>
-                      <p className="text-base">
-                        {selectedDetailEnquiry?.interestedIn || "-"} {selectedDetailEnquiry?.grade ? `· Grade: ${selectedDetailEnquiry.grade}` : ""}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Status</p>
-                      <Badge variant={selectedDetailEnquiry?.status === "active" ? "default" : "secondary"} className="capitalize">
-                        {selectedDetailEnquiry?.status}
-                      </Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Parent Name</p>
-                      <p className="text-base">{selectedDetailEnquiry?.parentName || "-"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Parent Number</p>
-                      <p className="text-base">{selectedDetailEnquiry?.parentNumber || "-"}</p>
-                    </div>
-                    <div className="col-span-full space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Reason / Comments</p>
-                      <div className="p-3 bg-muted rounded-md min-h-[60px] text-sm">
-                        {selectedDetailEnquiry?.reason || "No comments provided."}
-                      </div>
-                    </div>
-                    <div className="col-span-full pt-2 flex justify-between text-xs text-muted-foreground border-t">
-                      <p>Created: {selectedDetailEnquiry ? new Date(selectedDetailEnquiry.createdAt).toLocaleString() : ""}</p>
-                      <p>Last Updated: {selectedDetailEnquiry ? new Date(selectedDetailEnquiry.updatedAt).toLocaleString() : ""}</p>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -961,36 +907,30 @@ const AdminDashboard = () => {
                   <TableHead>
                     <div
                       className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
-                      onClick={() => toggleEnquirySort("name")}
+                      onClick={() => setEnquirySort({
+                        field: "name",
+                        order: enquirySort.field === "name" && enquirySort.order === "asc" ? "desc" : "asc"
+                      })}
                     >
                       Name
-                      <ArrowUpDown className="h-3.5 w-3.5" />
+                      <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
                     </div>
                   </TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Interested In / Grade</TableHead>
-                  {enquiryTab === "resolved_inactive" && (
-                    <TableHead>
-                      <div
-                        className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
-                        onClick={() => toggleEnquirySort("status")}
-                      >
-                        Status
-                        <ArrowUpDown className="h-3.5 w-3.5" />
-                      </div>
-                    </TableHead>
-                  )}
-                  {enquiryTab === "resolved_inactive" && <TableHead>Reason</TableHead>}
                   <TableHead>
                     <div
                       className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
-                      onClick={() => toggleEnquirySort("date")}
+                      onClick={() => setEnquirySort({
+                        field: "date",
+                        order: enquirySort.field === "date" && enquirySort.order === "asc" ? "desc" : "asc"
+                      })}
                     >
                       Date
-                      <ArrowUpDown className="h-3.5 w-3.5" />
+                      <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
                     </div>
                   </TableHead>
-                  {enquiryTab === "active" && <TableHead className="text-right">Actions</TableHead>}
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1007,39 +947,26 @@ const AdminDashboard = () => {
                       <div className="text-sm">{enquiry.interestedIn || "-"}</div>
                       <div className="text-xs text-muted-foreground">{enquiry.grade ? `Grade: ${enquiry.grade}` : ""}</div>
                     </TableCell>
-                    {enquiryTab === "resolved_inactive" && (
-                      <TableCell>
-                        <span className="capitalize">{enquiry.status || "Active"}</span>
-                      </TableCell>
-                    )}
-                    {enquiryTab === "resolved_inactive" && (
-                      <TableCell>
-                        <div className="text-sm text-muted-foreground max-w-[200px] truncate" title={enquiry.reason || "-"}>
-                          {enquiry.reason || "-"}
-                        </div>
-                      </TableCell>
-                    )}
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDate(enquiry.createdAt)}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEnquiryDetails(enquiry)}>
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                        {enquiryTab === "active" && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEnquiryDialog(enquiry)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
+                    <TableCell className="text-right flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => {
+                        setSelectedEnquiry(enquiry);
+                        setDetailsOpen(true);
+                      }}>
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEnquiryDialog(enquiry)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
                 {filteredEnquiries.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      No enquiries found.
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      No active enquiries found.
                     </TableCell>
                   </TableRow>
                 )}
@@ -1048,7 +975,162 @@ const AdminDashboard = () => {
           </div>
         </section>
       )}
-    </DashboardLayout>
+
+      {normalizedSection === "enquiry-history" && (
+        <section className="bg-card rounded-xl border shadow-card">
+          <div className="p-5 border-b flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-500">History</h3>
+              <p className="text-xs text-muted-foreground uppercase font-black tracking-widest mt-1">
+                Inactive & Resolved Leads
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="font-bold gap-2 text-primary hover:bg-primary/5"
+              onClick={() => navigate("/admin/enquiries")}
+            >
+              ← Back to Active
+            </Button>
+          </div>
+          <div className="overflow-x-auto">
+            {historyLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <Loader2 className="h-10 w-10 animate-spin text-primary/30" />
+                <p className="text-sm font-bold text-slate-400 animate-pulse uppercase tracking-widest">Loading History...</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader className="bg-muted/10">
+                  <TableRow>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Name</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Status</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Update Reason</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Date</TableHead>
+                    <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">View</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historyEnquiries.map((e) => (
+                    <TableRow key={e.id} className="hover:bg-muted/5 transition-colors">
+                      <TableCell className="font-bold text-slate-700">{e.name}</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider ${String(e.status).toLowerCase() === "resolved"
+                            ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                            : "bg-slate-200 text-slate-600 hover:bg-slate-200"
+                            }`}
+                        >
+                          {e.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[200px]">
+                        <p className="text-sm font-medium text-slate-500 italic truncate" title={e.reason}>
+                          {e.reason || "-"}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-slate-400 text-xs">
+                        {formatDate(e.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-primary"
+                          onClick={() => {
+                            setSelectedEnquiry(e);
+                            setDetailsOpen(true);
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {historyEnquiries.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-20 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="h-12 w-12 rounded-2xl bg-muted/20 flex items-center justify-center text-muted-foreground/30">
+                            <History className="h-6 w-6" />
+                          </div>
+                          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">No Records Found</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </section>
+      )}
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enquiry Details</DialogTitle>
+          </DialogHeader>
+          {selectedEnquiry && (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Name</p>
+                  <p className="font-bold text-sm">{selectedEnquiry.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Status</p>
+                  <Badge variant={selectedEnquiry.status === "active" ? "default" : "secondary"}>
+                    {selectedEnquiry.status}
+                  </Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Mobile</p>
+                  <p className="text-sm font-medium">{selectedEnquiry.phone}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Email</p>
+                  <p className="text-sm font-medium truncate">{selectedEnquiry.email}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Class</p>
+                  <p className="text-sm font-medium">{selectedEnquiry.grade || "-"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Interested In</p>
+                  <p className="text-sm font-medium">{selectedEnquiry.interestedIn || "-"}</p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase text-muted-foreground">School Name</p>
+                <p className="text-sm font-medium">{selectedEnquiry.schoolName || "-"}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Parent Name</p>
+                  <p className="text-sm font-medium">{selectedEnquiry.parentName || "-"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Parent Mobile</p>
+                  <p className="text-sm font-medium">{selectedEnquiry.parentNumber || "-"}</p>
+                </div>
+              </div>
+              {selectedEnquiry.reason && (
+                <div className="space-y-1 p-2 rounded-lg bg-muted/50 border">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Latest Update Reason</p>
+                  <p className="text-xs font-medium italic">{selectedEnquiry.reason}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </DashboardLayout >
   );
 };
 
