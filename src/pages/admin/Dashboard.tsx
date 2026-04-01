@@ -61,6 +61,8 @@ const emptyStudentForm: StudentPayload = {
   courseId: 0,
   batchId: 0,
   attendancePercentage: 0,
+  parentName: "",
+  parentPhoneNumber: "",
 };
 
 const emptyTeacherForm: TeacherPayload = {
@@ -113,7 +115,9 @@ const AdminDashboard = () => {
   const [historyEnquiries, setHistoryEnquiries] = useState<Enquiry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedEnquiry, setSelectedEnquiry] = useState<Enquiry | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [studentDetailsOpen, setStudentDetailsOpen] = useState(false);
   const [updateReason, setUpdateReason] = useState("");
 
   const [studentSearch, setStudentSearch] = useState("");
@@ -218,8 +222,8 @@ const AdminDashboard = () => {
       (student) =>
         matches(student.name, studentSearch) ||
         matches(student.email, studentSearch) ||
-        matches(String(student.courseId), studentSearch) ||
-        matches(String(student.batchId), studentSearch),
+        matches(student.course?.title || String(student.courseId), studentSearch) ||
+        matches(student.batch?.name || String(student.batchId), studentSearch),
     );
   }, [studentSearch, students]);
 
@@ -275,6 +279,16 @@ const AdminDashboard = () => {
     });
   }, [enquirySearch, enquirySort, enquiries]);
 
+  const filteredHistoryEnquiries = useMemo(() => {
+    let result = historyEnquiries;
+    if (enquirySearch.trim()) {
+      result = result.filter(
+        (e) => matches(e.name, enquirySearch) || matches(e.email, enquirySearch) || matches(e.phone, enquirySearch)
+      );
+    }
+    return result;
+  }, [enquirySearch, historyEnquiries]);
+
   const openStudentDialog = async (id?: string) => {
     if (!id) {
       setEditingStudentId(null);
@@ -293,6 +307,8 @@ const AdminDashboard = () => {
         courseId: student.courseId,
         batchId: student.batchId,
         attendancePercentage: student.attendancePercentage || 0,
+        parentName: student.parentName || "",
+        parentPhoneNumber: student.parentPhoneNumber || "",
       });
       setStudentDialogOpen(true);
     } catch (error) {
@@ -581,6 +597,10 @@ const AdminDashboard = () => {
                       value={studentForm.attendancePercentage}
                       onChange={(event) => setStudentForm({ ...studentForm, attendancePercentage: Number(event.target.value || 0) })}
                     />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input placeholder="Parent name" value={studentForm.parentName} onChange={(event) => setStudentForm({ ...studentForm, parentName: event.target.value })} />
+                      <Input placeholder="Parent Phone" value={studentForm.parentPhoneNumber} onChange={(event) => setStudentForm({ ...studentForm, parentPhoneNumber: event.target.value.replace(/\D/g, "").slice(0, 10) })} />
+                    </div>
                     <Button className="w-full" onClick={saveStudent}>
                       {editingStudentId ? "Save Student" : "Create Student"}
                     </Button>
@@ -608,11 +628,17 @@ const AdminDashboard = () => {
                       <div className="font-medium">{student.name}</div>
                       <div className="text-xs text-muted-foreground">{student.email}</div>
                     </TableCell>
-                    <TableCell>{student.courseId}</TableCell>
-                    <TableCell>{student.batchId}</TableCell>
+                    <TableCell>{student.course?.title || student.courseId}</TableCell>
+                    <TableCell>{student.batch?.name || student.batchId}</TableCell>
 
                     <TableCell>{student.attendancePercentage ?? 0}%</TableCell>
                     <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => {
+                        setSelectedStudent(student);
+                        setStudentDetailsOpen(true);
+                      }}>
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openStudentDialog(student.id)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -985,14 +1011,22 @@ const AdminDashboard = () => {
                 Inactive & Resolved Leads
               </p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="font-bold gap-2 text-primary hover:bg-primary/5"
-              onClick={() => navigate("/admin/enquiries")}
-            >
-              ← Back to Active
-            </Button>
+            <div className="flex gap-4">
+              <Input
+                placeholder="Search history..."
+                className="w-56 h-10 rounded-xl"
+                value={enquirySearch}
+                onChange={(event) => setEnquirySearch(event.target.value)}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="font-bold gap-2 text-primary hover:bg-primary/5"
+                onClick={() => navigate("/admin/enquiries")}
+              >
+                ← Back to Active
+              </Button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             {historyLoading ? (
@@ -1012,7 +1046,7 @@ const AdminDashboard = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {historyEnquiries.map((e) => (
+                  {filteredHistoryEnquiries.map((e) => (
                     <TableRow key={e.id} className="hover:bg-muted/5 transition-colors">
                       <TableCell className="font-bold text-slate-700">{e.name}</TableCell>
                       <TableCell>
@@ -1048,7 +1082,7 @@ const AdminDashboard = () => {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {historyEnquiries.length === 0 && (
+                  {filteredHistoryEnquiries.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="py-20 text-center">
                         <div className="flex flex-col items-center gap-3">
@@ -1117,13 +1151,70 @@ const AdminDashboard = () => {
                 </div>
                 <div className="space-y-1">
                   <p className="text-[10px] font-black uppercase text-muted-foreground">Parent Mobile</p>
-                  <p className="text-sm font-medium">{selectedEnquiry.parentNumber || "-"}</p>
+                  <p className="text-sm font-medium">{selectedEnquiry.parentPhoneNumber || "-"}</p>
                 </div>
               </div>
               {selectedEnquiry.reason && (
                 <div className="space-y-1 p-2 rounded-lg bg-muted/50 border">
                   <p className="text-[10px] font-black uppercase text-muted-foreground">Latest Update Reason</p>
                   <p className="text-xs font-medium italic">{selectedEnquiry.reason}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={studentDetailsOpen} onOpenChange={setStudentDetailsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Student Details</DialogTitle>
+          </DialogHeader>
+          {selectedStudent && (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Name</p>
+                  <p className="font-bold text-sm">{selectedStudent.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Attendance</p>
+                  <Badge variant="outline">{selectedStudent.attendancePercentage ?? 0}%</Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Mobile</p>
+                  <p className="text-sm font-medium">{selectedStudent.phone}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Email</p>
+                  <p className="text-sm font-medium truncate">{selectedStudent.email}</p>
+                </div>
+              </div>
+              <div className="space-y-1 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                <p className="text-[10px] font-black uppercase text-primary/70">Course Details</p>
+                <p className="font-bold text-sm">{selectedStudent.course?.title || `ID: ${selectedStudent.courseId}`}</p>
+                {selectedStudent.course?.subtitle && <p className="text-xs text-muted-foreground">{selectedStudent.course.subtitle}</p>}
+              </div>
+              <div className="space-y-1 p-3 rounded-lg bg-secondary/5 border border-secondary/10">
+                <p className="text-[10px] font-black uppercase text-muted-foreground">Batch Details</p>
+                <p className="font-bold text-sm">{selectedStudent.batch?.name || `ID: ${selectedStudent.batchId}`}</p>
+                {selectedStudent.batch?.startDate && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatDate(selectedStudent.batch.startDate)} - {formatDate(selectedStudent.batch.endDate)}
+                  </p>
+                )}
+              </div>
+              {(selectedStudent.parentName || selectedStudent.parentPhoneNumber) && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground">Parent Name</p>
+                    <p className="text-sm font-medium">{selectedStudent.parentName || "-"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground">Parent Mobile</p>
+                    <p className="text-sm font-medium">{selectedStudent.parentPhoneNumber || "-"}</p>
+                  </div>
                 </div>
               )}
             </div>

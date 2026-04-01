@@ -19,6 +19,20 @@ export interface Student {
   courseId: number;
   batchId: number;
   attendancePercentage: number | null;
+  parentName?: string;
+  parentPhoneNumber?: string;
+  course?: {
+    title: string;
+    subtitle: string;
+    description: string | null;
+    targetClasses: string;
+    createdAt?: string;
+  };
+  batch?: {
+    name: string;
+    startDate: string;
+    endDate: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -30,6 +44,8 @@ export interface StudentPayload {
   courseId: number;
   batchId: number;
   attendancePercentage: number;
+  parentName?: string;
+  parentPhoneNumber?: string;
 }
 
 export interface Teacher {
@@ -143,7 +159,7 @@ export interface Enquiry {
   schoolName?: string;
   grade?: string;
   parentName?: string;
-  parentNumber?: string;
+  parentPhoneNumber?: string;
   status: string;
   reason?: string;
   createdAt: string;
