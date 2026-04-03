@@ -1,10 +1,11 @@
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 export type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-  timestamp: string;
+  data?: T;
+  error?: {
+    code: number;
+    message: string;
+  };
 };
 
 export type FeesStatus = "PAID" | "PENDING" | "PARTIAL";
@@ -216,7 +217,7 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
-    throw new Error(json?.message || `API error: ${response.status}`);
+    throw new Error(json?.error?.message || `API error: ${response.status}`);
   }
 
   return json?.data as T;
