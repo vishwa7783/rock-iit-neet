@@ -69,6 +69,7 @@ const emptyTeacherForm: TeacherPayload = {
   name: "",
   phone: "",
   email: "",
+  subjects: [],
 };
 
 const emptyCourseForm: CoursePayload = {
@@ -126,6 +127,7 @@ const AdminDashboard = () => {
 
   const [scheduleSearch, setScheduleSearch] = useState("");
   const [enquirySearch, setEnquirySearch] = useState("");
+  const [teacherSort, setTeacherSort] = useState<"asc" | "desc">("asc");
   const [enquirySort, setEnquirySort] = useState<{ field: "name" | "date"; order: "asc" | "desc" }>({
     field: "date",
     order: "desc",
@@ -217,8 +219,9 @@ const AdminDashboard = () => {
   }, [normalizedSection]);
 
   const filteredStudents = useMemo(() => {
-    if (!studentSearch.trim()) return students;
-    return students.filter(
+    let result = students.filter(s => s.recordStatus !== 'archived');
+    if (!studentSearch.trim()) return result;
+    return result.filter(
       (student) =>
         matches(student.name, studentSearch) ||
         matches(student.email, studentSearch) ||
@@ -228,18 +231,26 @@ const AdminDashboard = () => {
   }, [studentSearch, students]);
 
   const filteredTeachers = useMemo(() => {
-    if (!teacherSearch.trim()) return teachers;
-    return teachers.filter(
-      (teacher) =>
-        matches(teacher.name, teacherSearch) ||
-        matches(teacher.email, teacherSearch) ||
-        matches(teacher.phone, teacherSearch),
-    );
-  }, [teacherSearch, teachers]);
+    let result = teachers.filter(t => t.recordStatus !== 'archived');
+    if (teacherSearch.trim()) {
+      result = result.filter(
+        (teacher) =>
+          matches(teacher.name, teacherSearch) ||
+          matches(teacher.email, teacherSearch) ||
+          matches(teacher.phone, teacherSearch) ||
+          (teacher.subjects && teacher.subjects.some(s => matches(s, teacherSearch))),
+      );
+    }
+    return [...result].sort((a, b) => {
+      const cmp = a.name.localeCompare(b.name);
+      return teacherSort === "asc" ? cmp : -cmp;
+    });
+  }, [teacherSearch, teacherSort, teachers]);
 
   const filteredCourses = useMemo(() => {
-    if (!courseSearch.trim()) return courses;
-    return courses.filter(
+    let result = courses.filter(c => c.recordStatus !== 'archived');
+    if (!courseSearch.trim()) return result;
+    return result.filter(
       (course) =>
         matches(course.title, courseSearch) ||
         matches(course.subtitle, courseSearch) ||
@@ -250,8 +261,9 @@ const AdminDashboard = () => {
 
 
   const filteredSchedules = useMemo(() => {
-    if (!scheduleSearch.trim()) return schedules;
-    return schedules.filter(
+    let result = schedules.filter(s => s.recordStatus !== 'archived');
+    if (!scheduleSearch.trim()) return result;
+    return result.filter(
       (schedule) =>
         matches(schedule.subject, scheduleSearch) ||
         matches(schedule.topic, scheduleSearch) ||
@@ -331,6 +343,7 @@ const AdminDashboard = () => {
         name: teacher.name,
         phone: teacher.phone,
         email: teacher.email,
+        subjects: teacher.subjects || [],
       });
       setTeacherDialogOpen(true);
     } catch (error) {
@@ -474,7 +487,7 @@ const AdminDashboard = () => {
   };
 
   const deleteStudent = async (id: string) => {
-    if (!window.confirm("Delete this student?")) return;
+    if (!window.confirm("Archive this student? This will not delete the data from database.")) return;
     try {
       await studentService.delete(id);
       toast.success("Student deleted");
@@ -485,7 +498,7 @@ const AdminDashboard = () => {
   };
 
   const deleteTeacher = async (id: string) => {
-    if (!window.confirm("Delete this teacher?")) return;
+    if (!window.confirm("Archive this teacher? This will not delete the data from database.")) return;
     try {
       await teacherService.delete(id);
       toast.success("Teacher deleted");
@@ -496,7 +509,7 @@ const AdminDashboard = () => {
   };
 
   const deleteCourse = async (id: number) => {
-    if (!window.confirm("Delete this course?")) return;
+    if (!window.confirm("Archive this course? This will not delete the data from database.")) return;
     try {
       await courseService.delete(id);
       toast.success("Course deleted");
@@ -507,7 +520,7 @@ const AdminDashboard = () => {
   };
 
   const deleteSchedule = async (id: number) => {
-    if (!window.confirm("Delete this schedule?")) return;
+    if (!window.confirm("Archive this schedule? This will not delete the data from database.")) return;
     try {
       await scheduleService.delete(id);
       toast.success("Schedule deleted");
@@ -613,12 +626,11 @@ const AdminDashboard = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Course</TableHead>
-                  <TableHead>Batch</TableHead>
-
-                  <TableHead>Attendance</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-[30%] min-w-[200px] uppercase text-[11px] font-bold tracking-wider">Name</TableHead>
+                  <TableHead className="w-[20%] uppercase text-[11px] font-bold tracking-wider">Course</TableHead>
+                  <TableHead className="w-[20%] uppercase text-[11px] font-bold tracking-wider">Batch</TableHead>
+                  <TableHead className="w-[15%] uppercase text-[11px] font-bold tracking-wider">Attendance</TableHead>
+                  <TableHead className="text-right w-[150px] uppercase text-[11px] font-bold tracking-wider">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -630,7 +642,6 @@ const AdminDashboard = () => {
                     </TableCell>
                     <TableCell>{student.course?.title || student.courseId}</TableCell>
                     <TableCell>{student.batch?.name || student.batchId}</TableCell>
-
                     <TableCell>{student.attendancePercentage ?? 0}%</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => {
@@ -677,8 +688,22 @@ const AdminDashboard = () => {
                   </DialogHeader>
                   <div className="space-y-3">
                     <Input placeholder="Full name" value={teacherForm.name} onChange={(event) => setTeacherForm({ ...teacherForm, name: event.target.value })} />
-                    <Input placeholder="Phone" value={teacherForm.phone} onChange={(event) => setTeacherForm({ ...teacherForm, phone: event.target.value.replace(/\D/g, "").slice(0, 10) })} />
+                    <Input
+                      placeholder="Phone"
+                      value={teacherForm.phone}
+                      readOnly={!!editingTeacherId}
+                      className={editingTeacherId ? "bg-muted" : ""}
+                      onChange={(event) => setTeacherForm({ ...teacherForm, phone: event.target.value.replace(/\D/g, "").slice(0, 10) })}
+                    />
                     <Input placeholder="Email" type="email" value={teacherForm.email} onChange={(event) => setTeacherForm({ ...teacherForm, email: event.target.value })} />
+                    <Input
+                      placeholder="Subjects (comma separated)"
+                      value={teacherForm.subjects.join(", ")}
+                      onChange={(event) => setTeacherForm({
+                        ...teacherForm,
+                        subjects: event.target.value.split(",").map(s => s.trim()).filter(s => s !== "")
+                      })}
+                    />
                     <Button className="w-full" onClick={saveTeacher}>
                       {editingTeacherId ? "Save Teacher" : "Create Teacher"}
                     </Button>
@@ -691,19 +716,41 @@ const AdminDashboard = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-[40%] min-w-[250px]">
+                    <button
+                      className="flex items-center gap-1 hover:text-primary transition-colors uppercase text-[11px] font-bold tracking-wider"
+                      onClick={() => setTeacherSort(teacherSort === "asc" ? "desc" : "asc")}
+                    >
+                      Teacher <ArrowUpDown className="h-3 w-3" />
+                    </button>
+                  </TableHead>
+                  <TableHead className="w-[180px] uppercase text-[11px] font-bold tracking-wider">Phone</TableHead>
+                  <TableHead className="uppercase text-[11px] font-bold tracking-wider">Subjects</TableHead>
+                  <TableHead className="text-right w-[100px] uppercase text-[11px] font-bold tracking-wider">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredTeachers.map((teacher) => (
                   <TableRow key={teacher.id}>
-                    <TableCell className="font-medium">{teacher.name}</TableCell>
-                    <TableCell>{teacher.phone}</TableCell>
-                    <TableCell>{teacher.email}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell>
+                      <div className="font-medium">{teacher.name}</div>
+                      <div className="text-xs text-muted-foreground">{teacher.email}</div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{teacher.phone}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1 max-w-[400px]">
+                        {teacher.subjects && teacher.subjects.length > 0 ? (
+                          teacher.subjects.map((s, i) => (
+                            <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 uppercase font-black tracking-tight">
+                              {s}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">None</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openTeacherDialog(teacher.id)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -757,10 +804,10 @@ const AdminDashboard = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Subtitle</TableHead>
-                  <TableHead>Target Classes</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-[30%] min-w-[200px] uppercase text-[11px] font-bold tracking-wider">Title</TableHead>
+                  <TableHead className="w-[30%] uppercase text-[11px] font-bold tracking-wider">Subtitle</TableHead>
+                  <TableHead className="w-[30%] uppercase text-[11px] font-bold tracking-wider">Target Classes</TableHead>
+                  <TableHead className="text-right w-[100px] uppercase text-[11px] font-bold tracking-wider">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -842,12 +889,12 @@ const AdminDashboard = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Teacher</TableHead>
-                  <TableHead>Batch</TableHead>
-                  <TableHead>When</TableHead>
-                  <TableHead>Room</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-[20%]">Subject</TableHead>
+                  <TableHead className="w-[20%]">Teacher</TableHead>
+                  <TableHead className="w-[15%]">Batch</TableHead>
+                  <TableHead className="w-[20%] text-center">Date & Time</TableHead>
+                  <TableHead className="w-[15%] text-center">Room</TableHead>
+                  <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -930,7 +977,7 @@ const AdminDashboard = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>
+                  <TableHead className="uppercase text-[11px] font-bold tracking-wider">
                     <div
                       className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
                       onClick={() => setEnquirySort({
@@ -942,9 +989,9 @@ const AdminDashboard = () => {
                       <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
                     </div>
                   </TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Interested In / Grade</TableHead>
-                  <TableHead>
+                  <TableHead className="uppercase text-[11px] font-bold tracking-wider">Contact</TableHead>
+                  <TableHead className="uppercase text-[11px] font-bold tracking-wider">Interested In / Grade</TableHead>
+                  <TableHead className="uppercase text-[11px] font-bold tracking-wider">
                     <div
                       className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
                       onClick={() => setEnquirySort({
@@ -956,7 +1003,7 @@ const AdminDashboard = () => {
                       <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
                     </div>
                   </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right uppercase text-[11px] font-bold tracking-wider">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

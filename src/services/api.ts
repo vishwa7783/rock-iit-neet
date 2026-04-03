@@ -33,6 +33,7 @@ export interface Student {
     startDate: string;
     endDate: string;
   };
+  recordStatus: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -53,6 +54,8 @@ export interface Teacher {
   name: string;
   phone: string;
   email: string;
+  subjects?: string[];
+  recordStatus: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,6 +64,7 @@ export interface TeacherPayload {
   name: string;
   phone: string;
   email: string;
+  subjects: string[];
 }
 
 export interface Course {
@@ -69,6 +73,7 @@ export interface Course {
   subtitle: string;
   description: string | null;
   targetClasses: string;
+  recordStatus: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -90,6 +95,7 @@ export interface ClassSchedule {
   teacherName: string;
   batchId: number;
   room: string;
+  recordStatus: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -104,13 +110,13 @@ export interface ClassSchedulePayload {
   room: string;
 }
 
-export interface AttendanceRecord {
+export interface Attendance {
   id: number;
   studentId: string;
-  studentName: string;
+  studentName?: string;
   classScheduleId: number;
-  subject: string;
-  status: AttendanceStatus;
+  subject?: string;
+  attendanceStatus: "PRESENT" | "ABSENT";
   date: string;
   createdAt: string;
   updatedAt: string;
@@ -119,7 +125,7 @@ export interface AttendanceRecord {
 export interface AttendancePayload {
   studentId: string;
   classScheduleId: number;
-  status: AttendanceStatus;
+  attendanceStatus: AttendanceStatus;
   date: string;
 }
 
@@ -297,10 +303,9 @@ export const scheduleService = {
 };
 
 export const attendanceService = {
-  mark: (data: AttendancePayload) =>
-    request<AttendanceRecord>("/attendances", { method: "POST", body: JSON.stringify(data) }),
-  getByStudent: (studentId: string) => request<AttendanceRecord[]>(`/attendances/student/${studentId}`),
-  getByClass: (classId: number) => request<AttendanceRecord[]>(`/attendances/class/${classId}`),
+  getAttendanceByStudent: (studentId: string) => request<Attendance[]>(`/attendances/student/${studentId}`),
+  getAttendanceByClass: (classId: number) => request<Attendance[]>(`/attendances/class/${classId}`),
+  markAttendance: (payload: Partial<Attendance>) => request<Attendance>("/attendances", { method: "POST", body: JSON.stringify(payload) }),
 };
 
 export const testScoreService = {
